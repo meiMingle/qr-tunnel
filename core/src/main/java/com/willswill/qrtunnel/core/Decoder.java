@@ -47,15 +47,24 @@ public class Decoder {
         hints.put(DecodeHintType.PURE_BARCODE, "true");
     }
 
-    public int decode(BufferedImage image, int lastNonce) throws ReaderException, IOException {
+    public Integer decode(BufferedImage image, int lastNonce) throws ReaderException, IOException {
 
         try {
             Result[] result = qrCodeReader.decodeMultiple(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))), hints);
-            byte[] buf = result[0].getText().getBytes(StandardCharsets.ISO_8859_1);
-            return decode(buf, lastNonce);
-        } finally {
+            if (result!=null&&result.length>0){
+                byte[] buf = result[0].getText().getBytes(StandardCharsets.ISO_8859_1);
+                return decode(buf, lastNonce);
+            } else {
+                return null;
+            }
+        }
+        catch (Exception e){
+            log.error("Error!",e);
+        }
+        finally {
             qrCodeReader.reset();
         }
+        return null;
     }
 
     public int decode(byte[] buf, int lastNonce) throws IOException {

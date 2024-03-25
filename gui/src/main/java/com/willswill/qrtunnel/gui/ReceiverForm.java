@@ -4,7 +4,6 @@ import com.google.zxing.ChecksumException;
 import com.google.zxing.FormatException;
 import com.google.zxing.NotFoundException;
 import com.google.zxing.ReaderException;
-import com.sun.istack.internal.NotNull;
 import com.willswill.qrtunnel.core.DecodeException;
 import com.willswill.qrtunnel.core.Decoder;
 import com.willswill.qrtunnel.core.DecoderCallback;
@@ -118,7 +117,6 @@ public class ReceiverForm {
         Launcher.log("Capture rect  is set to " + layout.left + "," + layout.top + " " + layout.width + "*" + layout.height);
     }
 
-    @NotNull
     public static Rectangle getFullVirtualScreenRect() {
         GraphicsDevice[] screenDevices = localGraphicsEnvironment.getScreenDevices();
         Rectangle allBounds = new Rectangle();
@@ -136,7 +134,7 @@ public class ReceiverForm {
         return allBounds;
     }
 
-    public static @NotNull int getJavaVersion(@NotNull String versionString) throws IllegalArgumentException {
+    public static int getJavaVersion(String versionString) throws IllegalArgumentException {
         // trimming
         String str = versionString.trim();
         Map<String, String> trimmingMap = new HashMap<>(); // "substring to detect" to "substring from which to trim"
@@ -270,7 +268,6 @@ public class ReceiverForm {
 
     void startCapture() throws Exception {
         Rectangle captureRect = new Rectangle(layout.left, layout.top, layout.width, layout.height);
-        Robot robot = new Robot();
         BufferedImage image;
         running = true;
         int[][] nonceArr = new int[layout.rows][layout.cols];
@@ -281,7 +278,8 @@ public class ReceiverForm {
                 for (int i = 0; i < layout.rows; i++) {
                     for (int j = 0; j < layout.cols; j++) {
                         BufferedImage cropped = image.getSubimage(layout.width / layout.cols * j, layout.height / layout.rows * i, layout.width / layout.cols, layout.height / layout.rows);
-                        nonceArr[i][j] = decoder.decode(cropped, nonceArr[i][j]);
+                        Integer decode = decoder.decode(cropped, nonceArr[i][j]);
+                        nonceArr[i][j] = decode != null ? decode : nonceArr[i][j];
                     }
                 }
             } catch (NotFoundException | FormatException | ChecksumException ignore) {
