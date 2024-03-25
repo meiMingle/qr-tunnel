@@ -3,6 +3,7 @@ package com.willswill.qrtunnel.gui;
 import com.google.zxing.*;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.multi.qrcode.QRCodeMultiReader;
 import com.google.zxing.qrcode.QRCodeReader;
 import com.google.zxing.qrcode.detector.FinderPattern;
 import com.willswill.qrtunnel.core.DecodeException;
@@ -10,69 +11,69 @@ import lombok.AllArgsConstructor;
 
 import java.awt.image.BufferedImage;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * @author Will
  */
 public class GetCodeCoordinates {
+
+    private static final Map<DecodeHintType, Object> DECODE_MAP = new HashMap<>();
+
+    static {
+        DECODE_MAP.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+    }
+
     public static Layout detect(BufferedImage image) throws ReaderException, DecodeException {
-        QRCodeReader qrCodeReader = new QRCodeReader();
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.CHARACTER_SET, "ISO-8859-1");
         hints.put(DecodeHintType.TRY_HARDER, "true");
 
-        BufferedImageLuminanceSource source = new BufferedImageLuminanceSource(image);
-        BinaryBitmap binaryBmp = new BinaryBitmap(new HybridBinarizer(source));
+        final float scale = 0.2f;
 
-        Result result = qrCodeReader.decode(binaryBmp, hints);
+        final Result[] results = new QRCodeMultiReader().decodeMultiple(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))), DECODE_MAP);
+        Result result0 = results[0];
         int left = image.getWidth();
         int top = image.getHeight();
         int right = 0;
         int bottom = 0;
-
-        for (ResultPoint point : result.getResultPoints()) {
-            if (point instanceof FinderPattern) {
-                FinderPattern fp = (FinderPattern) point;
-                left = Math.min(left, (int) Math.round(point.getX() - 3.5 * fp.getEstimatedModuleSize()));
-                top = Math.min(top, (int) Math.round(point.getY() - 3.5 * fp.getEstimatedModuleSize()));
-                right = Math.max(right, (int) Math.round(point.getX() + 3.5 * fp.getEstimatedModuleSize()));
-                bottom = Math.max(bottom, (int) Math.round(point.getY() + 3.5 * fp.getEstimatedModuleSize()));
+        for (Result result : results) {
+            int curleft = image.getWidth();
+            int curTop = image.getHeight();
+            int curRight = 0;
+            int curBottom = 0;
+            for (ResultPoint point : result.getResultPoints()) {
+                if (point instanceof FinderPattern) {
+                    FinderPattern fp = (FinderPattern) point;
+                    curleft = Math.min(curleft, (int) Math.round(point.getX() - 3.5 * fp.getEstimatedModuleSize()));
+                    curTop = Math.min(curTop, (int) Math.round(point.getY() - 3.5 * fp.getEstimatedModuleSize()));
+                    curRight = Math.max(curRight, (int) Math.round(point.getX() + 3.5 * fp.getEstimatedModuleSize()));
+                    curBottom = Math.max(curBottom, (int) Math.round(point.getY() + 3.5 * fp.getEstimatedModuleSize()));
+                }
             }
+            left = Math.min(left, curleft - (int) ((curRight - curleft) * scale));
+            top = Math.min(top, curTop - (int) ((curBottom - curTop) * scale));
+            right = Math.max(right, curRight + (int) ((curRight - curleft) * scale));
+            bottom = Math.max(bottom, curBottom + (int) ((curBottom - curTop) * scale));
         }
+
 
         int width = right - left;
         int height = bottom - top;
 
-        String[] split = result.getText().split("/");
-        int num = Integer.parseInt(split[0]);
+        String[] split = result0.getText().split("/");
+        // int num = Integer.parseInt(split[0]);
         String[] split1 = split[1].split("\\*");
-        String[] split2 = split[2].split("\\*");
-        int targetWidth = Integer.parseInt(split2[0]);
-        int targetHeight = Integer.parseInt(split2[1]);
-
-        if (width != targetWidth) {
-            int paddingLeft = (targetWidth - width) / 2;
-            int paddingTop = (targetHeight - height) / 2;
-            left -= paddingLeft;
-            top -= paddingTop;
-        }
 
         int rows = Integer.parseInt(split1[0]);
         int cols = Integer.parseInt(split1[1]);
-        int index = num - 1;
-        int rowIndex = index / cols;
-        int colIndex = index % cols;
-
-        int rect0Left = left - targetWidth * colIndex;
-        int rect0Top = top - targetHeight * rowIndex;
 
         // check
-        if (rect0Left + targetWidth * cols > image.getWidth() || rect0Top + targetHeight * rows > image.getHeight()) {
+        if (right - left > image.getWidth() || bottom - top > image.getHeight()) {
             throw new DecodeException("Capture rect is out of screen");
         }
-
-        return new Layout(rect0Left, rect0Top, targetWidth, targetHeight, rows, cols);
+        return new Layout(left, top, width, height, rows, cols);
     }
 
     @AllArgsConstructor

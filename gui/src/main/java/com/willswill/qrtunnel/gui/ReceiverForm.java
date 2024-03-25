@@ -4,16 +4,25 @@ import com.google.zxing.ChecksumException;
 import com.google.zxing.FormatException;
 import com.google.zxing.NotFoundException;
 import com.google.zxing.ReaderException;
+import com.sun.istack.internal.NotNull;
 import com.willswill.qrtunnel.core.DecodeException;
 import com.willswill.qrtunnel.core.Decoder;
 import com.willswill.qrtunnel.core.DecoderCallback;
 import com.willswill.qrtunnel.core.FileInfo;
 import lombok.extern.slf4j.Slf4j;
+import sun.awt.ComponentFactory;
 
 import javax.swing.*;
 import javax.swing.text.DefaultCaret;
 import java.awt.*;
-import java.awt.image.BufferedImage;
+import java.awt.image.*;
+import java.awt.peer.RobotPeer;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +44,13 @@ public class ReceiverForm {
     GetCodeCoordinates.Layout layout;
     boolean running = false;
     private final RingBuffer<String> logBuf = new RingBuffer<>(200);
+
+    private static final GraphicsEnvironment localGraphicsEnvironment = GraphicsEnvironment.getLocalGraphicsEnvironment();
+    private static final int MAX_ACCEPTED_VERSION = 25;
+
+    private static final MethodHandles.Lookup lookup = MethodHandles.lookup();
+
+    private static final Toolkit toolkit = Toolkit.getDefaultToolkit();
 
     private int totalImages;
     private int imageIndex;
@@ -63,6 +79,7 @@ public class ReceiverForm {
             try {
                 detectCaptureRect();
             } catch (ReaderException ex) {
+                log.error("Failed to detect capture rect!", ex);
                 JOptionPane.showMessageDialog(panel1, "Failed to detect capture rect!");
                 return;
             } catch (DecodeException ex) {
@@ -94,12 +111,121 @@ public class ReceiverForm {
     }
 
     void detectCaptureRect() throws ReaderException, DecodeException, AWTException {
-        Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
-        Robot robot = new Robot();
-        BufferedImage image = robot.createScreenCapture(new Rectangle(0, 0, d.width, d.height));
+        Rectangle fullRect = getFullVirtualScreenRect();
+        BufferedImage image = screenshot(fullRect);
         layout = GetCodeCoordinates.detect(image);
         log.info(layout.toString());
-        Launcher.log("Capture rect  is set to " + layout.left + "," + layout.top + " " + layout.width * layout.cols + "*" + layout.height * layout.rows);
+        Launcher.log("Capture rect  is set to " + layout.left + "," + layout.top + " " + layout.width + "*" + layout.height);
+    }
+
+    @NotNull
+    public static Rectangle getFullVirtualScreenRect() {
+        GraphicsDevice[] screenDevices = localGraphicsEnvironment.getScreenDevices();
+        Rectangle allBounds = new Rectangle();
+        for (int i = 0; i < screenDevices.length; i++) {
+            GraphicsDevice screenDevice = screenDevices[i];
+            GraphicsConfiguration gc = screenDevice.getDefaultConfiguration();
+            // 获取 GraphicsConfiguration 的 Bounds，它包含更高分辨率信息
+            Rectangle screenBounds = gc.getBounds();
+            if (System.getProperty("os.name").startsWith("Windows")) {
+                screenBounds.width = screenDevice.getDisplayMode().getWidth();
+                screenBounds.height = screenDevice.getDisplayMode().getHeight();
+            }
+            allBounds.add(screenBounds);
+        }
+        return allBounds;
+    }
+
+    public static @NotNull int getJavaVersion(@NotNull String versionString) throws IllegalArgumentException {
+        // trimming
+        String str = versionString.trim();
+        Map<String, String> trimmingMap = new HashMap<>(); // "substring to detect" to "substring from which to trim"
+        trimmingMap.put("Runtime Environment", "(build ");
+        trimmingMap.put("OpenJ9", "version ");
+        trimmingMap.put("GraalVM", "Java ");
+        for (String keyToDetect : trimmingMap.keySet()) {
+            if (str.contains(keyToDetect)) {
+                int p = str.indexOf(trimmingMap.get(keyToDetect));
+                if (p > 0) {
+                    str = str.substring(p);
+                }
+            }
+        }
+
+        // partitioning
+        java.util.List<String> numbers = new ArrayList<>(), separators = new ArrayList<>();
+        int length = str.length(), p = 0;
+        boolean number = false;
+        while (p < length) {
+            int start = p;
+            while (p < length && Character.isDigit(str.charAt(p)) == number) {
+                p++;
+            }
+            String part = str.substring(start, p);
+            (number ? numbers : separators).add(part);
+            number = !number;
+        }
+
+        // parsing
+        if (!numbers.isEmpty() && !separators.isEmpty()) {
+            try {
+                int feature = Integer.parseInt(numbers.get(0));
+                boolean ea = false;
+
+                if (feature >= 5 && feature < MAX_ACCEPTED_VERSION) {
+                    // Java 9+; Java 5+ (short format)
+                    return feature;
+                } else if (feature == 1 && numbers.size() > 1 && separators.size() > 1 && ".".equals(separators.get(1))) {
+                    // Java 1.0 .. 1.4; Java 5+ (prefixed format)
+                    feature = Integer.parseInt(numbers.get(1));
+                    if (feature <= MAX_ACCEPTED_VERSION) {
+                        return feature;
+                    }
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        throw new IllegalArgumentException(versionString);
+    }
+
+    private static boolean startsWithWord(String s, String word) {
+        return s.startsWith(word) && (s.length() == word.length() || !Character.isLetterOrDigit(s.charAt(word.length())));
+    }
+
+    public static BufferedImage screenshot(Rectangle allBounds) {
+        final RobotPeer robotPeer;
+        final MethodType methodType;
+        try {
+            if (getJavaVersion(System.getProperty("java.version")) < 17) {
+                methodType = MethodType.methodType(RobotPeer.class, Robot.class, GraphicsDevice.class);
+                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
+                robotPeer = (RobotPeer) methodHandle.invokeExact((Robot) null, localGraphicsEnvironment.getDefaultScreenDevice());
+            } else {
+                methodType = MethodType.methodType(RobotPeer.class, GraphicsDevice.class);
+                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
+                robotPeer = (RobotPeer) methodHandle.invokeExact(localGraphicsEnvironment.getDefaultScreenDevice());
+            }
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+
+        int[] pixels = robotPeer.getRGBPixels(allBounds);
+        DirectColorModel screenCapCM = new DirectColorModel(24,
+                /* red mask */ 0x00FF0000,
+                /* green mask */ 0x0000FF00,
+                /* blue mask */ 0x000000FF);
+        DataBufferInt buffer = new DataBufferInt(pixels, pixels.length);
+        int[] bandmasks = new int[3];
+        bandmasks[0] = screenCapCM.getRedMask();
+        bandmasks[1] = screenCapCM.getGreenMask();
+        bandmasks[2] = screenCapCM.getBlueMask();
+
+        WritableRaster raster = Raster.createPackedRaster(buffer, allBounds.width,
+                allBounds.height, allBounds.width, bandmasks, null);
+        BufferedImage highResolutionImage = new BufferedImage(screenCapCM, raster, false, null);
+
+        return highResolutionImage;
     }
 
     void startCaptureAsync() {
@@ -143,22 +269,23 @@ public class ReceiverForm {
     }
 
     void startCapture() throws Exception {
-        Rectangle captureRect = new Rectangle(layout.left, layout.top, layout.width * layout.cols, layout.height * layout.rows);
+        Rectangle captureRect = new Rectangle(layout.left, layout.top, layout.width, layout.height);
         Robot robot = new Robot();
         BufferedImage image;
         running = true;
         int[][] nonceArr = new int[layout.rows][layout.cols];
         while (running) {
-            image = robot.createScreenCapture(captureRect);
+            image = screenshot(captureRect);
             try {
                 // crop image
                 for (int i = 0; i < layout.rows; i++) {
                     for (int j = 0; j < layout.cols; j++) {
-                        BufferedImage cropped = image.getSubimage(layout.width * j, layout.height * i, layout.width, layout.height);
+                        BufferedImage cropped = image.getSubimage(layout.width / layout.cols * j, layout.height / layout.rows * i, layout.width / layout.cols, layout.height / layout.rows);
                         nonceArr[i][j] = decoder.decode(cropped, nonceArr[i][j]);
                     }
                 }
             } catch (NotFoundException | FormatException | ChecksumException ignore) {
+                log.error("Decode failed!maybe ignore", ignore);
             } catch (DecodeException ex) {
                 log.error("Decode failed: " + ex.getMessage());
                 Launcher.log(ex.getClass().getName() + ": " + ex.getMessage());

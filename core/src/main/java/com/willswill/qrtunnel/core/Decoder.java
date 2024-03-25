@@ -6,6 +6,7 @@ import com.google.zxing.ReaderException;
 import com.google.zxing.Result;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.multi.qrcode.QRCodeMultiReader;
 import com.google.zxing.qrcode.QRCodeReader;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +25,7 @@ import java.util.zip.CRC32;
  */
 @Slf4j
 public class Decoder {
-    private final QRCodeReader qrCodeReader;
+    private final QRCodeMultiReader qrCodeReader;
     private final Map<DecodeHintType, Object> hints;
 
     private final AppConfigs appConfigs;
@@ -40,19 +41,17 @@ public class Decoder {
         this.appConfigs = appConfigs;
         this.callback = callback;
 
-        qrCodeReader = new QRCodeReader();
+        qrCodeReader = new QRCodeMultiReader();
         hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.CHARACTER_SET, "ISO-8859-1");
         hints.put(DecodeHintType.PURE_BARCODE, "true");
     }
 
     public int decode(BufferedImage image, int lastNonce) throws ReaderException, IOException {
-        BufferedImageLuminanceSource source = new BufferedImageLuminanceSource(image);
-        BinaryBitmap binaryBmp = new BinaryBitmap(new HybridBinarizer(source));
 
         try {
-            Result result = qrCodeReader.decode(binaryBmp, hints);
-            byte[] buf = result.getText().getBytes(StandardCharsets.ISO_8859_1);
+            Result[] result = qrCodeReader.decodeMultiple(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))), hints);
+            byte[] buf = result[0].getText().getBytes(StandardCharsets.ISO_8859_1);
             return decode(buf, lastNonce);
         } finally {
             qrCodeReader.reset();
