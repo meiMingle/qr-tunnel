@@ -7,7 +7,7 @@ import lombok.Data;
  */
 @Data
 public class AppConfigs {
-    private int chunkSize = 1000; // 每张图片所包含的数据大小，最大值是
+    private int chunkSize = 1200; // 每张图片所包含的数据大小，最大值是
     private int sendInterval = 200; // 发送端每张图片停顿时间（毫秒）
 
     private int imageWidth = 350; // 生成的图片宽度
