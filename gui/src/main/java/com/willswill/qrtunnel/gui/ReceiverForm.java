@@ -49,10 +49,28 @@ public class ReceiverForm {
 
     private static final MethodHandles.Lookup lookup = MethodHandles.lookup();
 
+    private static final RobotPeer robotPeer;
+
     private static final Toolkit toolkit = Toolkit.getDefaultToolkit();
 
     private int totalImages;
     private int imageIndex;
+
+    static {
+        try {
+            if (getJavaVersion(System.getProperty("java.version")) < 17) {
+                MethodType methodType = MethodType.methodType(RobotPeer.class, Robot.class, GraphicsDevice.class);
+                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
+                robotPeer = (RobotPeer) methodHandle.invokeExact((Robot) null, localGraphicsEnvironment.getDefaultScreenDevice());
+            } else {
+                MethodType methodType = MethodType.methodType(RobotPeer.class, GraphicsDevice.class);
+                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
+                robotPeer = (RobotPeer) methodHandle.invokeExact(localGraphicsEnvironment.getDefaultScreenDevice());
+            }
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static ReceiverForm create() {
         JFrame frame = new JFrame("ReceiverForm");
@@ -126,6 +144,9 @@ public class ReceiverForm {
             // 获取 GraphicsConfiguration 的 Bounds，它包含更高分辨率信息
             Rectangle screenBounds = gc.getBounds();
             if (System.getProperty("os.name").startsWith("Windows")) {
+                screenBounds.x = screenBounds.x * screenDevice.getDisplayMode().getWidth() / screenBounds.width;
+                screenBounds.y = screenBounds.y * screenDevice.getDisplayMode().getHeight() / screenBounds.height;
+                screenBounds.height = screenDevice.getDisplayMode().getHeight();
                 screenBounds.width = screenDevice.getDisplayMode().getWidth();
                 screenBounds.height = screenDevice.getDisplayMode().getHeight();
             }
@@ -192,21 +213,6 @@ public class ReceiverForm {
     }
 
     public static BufferedImage screenshot(Rectangle allBounds) {
-        final RobotPeer robotPeer;
-        final MethodType methodType;
-        try {
-            if (getJavaVersion(System.getProperty("java.version")) < 17) {
-                methodType = MethodType.methodType(RobotPeer.class, Robot.class, GraphicsDevice.class);
-                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
-                robotPeer = (RobotPeer) methodHandle.invokeExact((Robot) null, localGraphicsEnvironment.getDefaultScreenDevice());
-            } else {
-                methodType = MethodType.methodType(RobotPeer.class, GraphicsDevice.class);
-                MethodHandle methodHandle = lookup.findVirtual(ComponentFactory.class, "createRobot", methodType).bindTo(toolkit);
-                robotPeer = (RobotPeer) methodHandle.invokeExact(localGraphicsEnvironment.getDefaultScreenDevice());
-            }
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
 
         int[] pixels = robotPeer.getRGBPixels(allBounds);
         DirectColorModel screenCapCM = new DirectColorModel(24,
