@@ -6,6 +6,7 @@ import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,6 +47,7 @@ public class Encoder {
         qrCodeWriter = new QRCodeWriter();
         hints = new EnumMap<>(EncodeHintType.class);
         hints.put(EncodeHintType.MARGIN, 0);
+        hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L);
         hints.put(EncodeHintType.CHARACTER_SET, "ISO-8859-1");
     }
 
@@ -111,11 +113,11 @@ public class Encoder {
         // generate image
         String content = new String(buf, 0, len + 20, StandardCharsets.ISO_8859_1);
         BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, appConfigs.getImageWidth(), appConfigs.getImageHeight(), hints);
-        BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
+        // BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
 
         // callback
         if (callback != null) {
-            callback.imageCreated(num, image);
+            callback.imageCreated(num, bitMatrix);
         }
     }
 

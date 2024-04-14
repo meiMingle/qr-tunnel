@@ -1,5 +1,7 @@
 package com.willswill.qrtunnel;
 
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
 import com.willswill.qrtunnel.core.AppConfigs;
 import com.willswill.qrtunnel.core.Decoder;
 import com.willswill.qrtunnel.core.Encoder;
@@ -23,8 +25,9 @@ public class Test {
 
         Encoder encoder = new Encoder(appConfigs, new EncoderCallback() {
             @Override
-            public void imageCreated(int num, BufferedImage image) {
+            public void imageCreated(int num, BitMatrix matrix) {
                 try {
+                    BufferedImage image = MatrixToImageWriter.toBufferedImage(matrix);
                     decoder.decode(image, 0);
                 } catch (Exception e) {
                     e.printStackTrace();

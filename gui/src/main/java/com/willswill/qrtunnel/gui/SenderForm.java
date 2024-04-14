@@ -76,11 +76,11 @@ public class SenderForm {
     void initEncoder() {
         encoder = new Encoder(Launcher.getAppConfigs(), new EncoderCallback() {
             @Override
-            public void imageCreated(int num, BufferedImage image) {
+            public void imageCreated(int num, BitMatrix matrix) {
                 try {
                     imageIndex = num;
                     updateProgress();
-                    imageViewList.get(num % imageViewList.size()).setImage(image);
+                    imageViewList.get(num % imageViewList.size()).setImage(matrix);
                     if (num % imageViewList.size() == 0 || num == totalImages) {
                         Thread.sleep(Launcher.getAppConfigs().getSendInterval());
                     }
@@ -155,8 +155,8 @@ public class SenderForm {
                 ImageView imageView = imageViewList.get(i);
                 String content = (i + 1) + "/" + appConfigs.getSenderLayout() + "/" + imageView.getImageWidth() + "*" + imageView.getImageHeight();
                 BitMatrix bitMatrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, appConfigs.getImageWidth(), appConfigs.getImageWidth());
-                BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
-                imageView.setImage(image);
+                // BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
+                imageView.setImage(bitMatrix);
             }
         } catch (Exception e) {
             log.error("Can't create QR code", e);

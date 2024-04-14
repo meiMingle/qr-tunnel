@@ -54,9 +54,10 @@ public class Launcher {
 
     private void loadConfigs() {
         self.appConfigs = new AppConfigs();
-        appConfigs.setChunkSize(1200);
-        appConfigs.setImageWidth(400);
-        appConfigs.setImageHeight(400);
+        appConfigs.setChunkSize(1024);
+        appConfigs.setSendInterval(100);
+        appConfigs.setImageWidth(450);
+        appConfigs.setImageHeight(450);
         appConfigs.setSenderLayout("2*3");
         appConfigs.setSaveDir(new File("Received").getAbsolutePath());
     }

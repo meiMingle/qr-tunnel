@@ -22,7 +22,6 @@ import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * @author Will
@@ -111,23 +110,17 @@ public class ReceiverForm {
             startCaptureAsync();
         });
 
-        stopButton.addActionListener(e -> {
-            running = false;
-        });
+        stopButton.addActionListener(e -> running = false);
 
-        senderButton.addActionListener(e -> {
-            Launcher.self.showSenderForm();
-        });
+        senderButton.addActionListener(e -> Launcher.self.showSenderForm());
 
-        configButton.addActionListener(e -> {
-            Launcher.self.showConfigsForm();
-        });
+        configButton.addActionListener(e -> Launcher.self.showConfigsForm());
 
         DefaultCaret caret = (DefaultCaret) logView.getCaret();
         caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
     }
 
-    void detectCaptureRect() throws ReaderException, DecodeException, AWTException {
+    void detectCaptureRect() throws ReaderException, DecodeException {
         Rectangle fullRect = getFullVirtualScreenRect();
         BufferedImage image = screenshot(fullRect);
         layout = GetCodeCoordinates.detect(image);
@@ -189,7 +182,6 @@ public class ReceiverForm {
         if (!numbers.isEmpty() && !separators.isEmpty()) {
             try {
                 int feature = Integer.parseInt(numbers.get(0));
-                boolean ea = false;
 
                 if (feature >= 5 && feature < MAX_ACCEPTED_VERSION) {
                     // Java 9+; Java 5+ (short format)
@@ -227,9 +219,8 @@ public class ReceiverForm {
 
         WritableRaster raster = Raster.createPackedRaster(buffer, allBounds.width,
                 allBounds.height, allBounds.width, bandmasks, null);
-        BufferedImage highResolutionImage = new BufferedImage(screenCapCM, raster, false, null);
 
-        return highResolutionImage;
+        return new BufferedImage(screenCapCM, raster, false, null);
     }
 
     void startCaptureAsync() {
@@ -288,8 +279,8 @@ public class ReceiverForm {
                         nonceArr[i][j] = decode != null ? decode : nonceArr[i][j];
                     }
                 }
-            } catch (NotFoundException | FormatException | ChecksumException ignore) {
-                log.error("Decode failed!maybe ignore", ignore);
+            } catch (NotFoundException | FormatException | ChecksumException ex) {
+                log.error("Decode failed!maybe ignore", ex);
             } catch (DecodeException ex) {
                 log.error("Decode failed: " + ex.getMessage());
                 Launcher.log(ex.getClass().getName() + ": " + ex.getMessage());
@@ -316,7 +307,7 @@ public class ReceiverForm {
 
     public void addLog(String s) {
         logBuf.put(s);
-        String text = logBuf.readFully().stream().collect(Collectors.joining("\n"));
+        String text = String.join("\n", logBuf.readFully());
         logView.setText(text);
     }
 
